@@ -507,7 +507,7 @@ async function fetchWBCountry(wb){
 }
 
 /* ── Google Apps Script proxy URL ── */
-const GAS_URL='https://script.google.com/macros/s/AKfycbz2bN3H3EMS-uCJhiNZfpoiU-0RoJ-m4Pi6BNzfOVvb3RL3W-9ft0SUhB5HGZ4myc2O/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbypD64ie3PkY6oKwBqo5-10ELqynaTGn8remYLD8P9FkrSyP0YcTOnJqyf-mkF1Sjj_/exec';
 
 async function gasGet(params){
   try{
@@ -562,6 +562,7 @@ async function fetchReliefWeb(rwCountry,limit=10){
     // 1) Google Apps Script
     const params={source:'reliefweb'};
     if(rwCountry) params.rw=rwCountry;
+    else params.rw='';  // 빈 문자열로 전송해야 GAS가 글로벌로 처리
     const d=await gasGet(params);
     if(d&&Array.isArray(d.items)&&(d.items.length>0||d.total>0)){
       return{
@@ -608,11 +609,24 @@ async function fetchHDX(wbCode){
 
 /* ── HDX Global: try multiple portfolio countries ── */
 async function fetchHDXGlobal(){
-  // Try countries that are most likely to have IPC food security data
-  const priorityCodes=['SOM','YEM','SYR','SSD','CAF','MLI','BDI'];
+  // Try countries sequentially — return first with any data
+  const priorityCodes=['SOM','YEM','SSD','SYR','CAF','MLI'];
   for(const code of priorityCodes){
+    try{
+      // Direct HDX v2 call (bypass GAS count=0 issue)
+      const r=await fetch(
+        `https://hapi.humdata.org/api/v2/food-security-nutrition-poverty/food-security?location_code=${code}&limit=1&offset=0`,
+        {signal:AbortSignal.timeout(6000)}
+      );
+      if(r.ok){
+        const d=await r.json();
+        if(d.metadata&&d.metadata.total>0) return{count:d.metadata.total,code};
+        if((d.data||[]).length>0) return{count:d.data.length,code};
+      }
+    }catch(e){}
+    // GAS fallback
     const d=await fetchHDX(code);
-    if(d&&d.count>0) return d;
+    if(d&&d.count!=null) return d;
   }
   return null;
 }
@@ -705,8 +719,10 @@ async function loadGlobalData(){
     });
   }
 
-  if(hdx) setMC('gm-food',fmt(hdx.count),'sample countries · HDX HAPI');
-  else setMC('gm-food','N/A','View at hapi.humdata.org');
+  if(hdx&&hdx.count!=null){
+    const lbl=hdx.code?`${hdx.code} · HDX HAPI`:'sample countries · HDX HAPI';
+    setMC('gm-food',fmt(hdx.count),lbl);
+  } else setMC('gm-food','N/A','View at hapi.humdata.org');
 
   // ACLED
   if(acled&&acled.events!=null){
