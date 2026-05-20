@@ -577,16 +577,7 @@ async function fetchReliefWeb(rwCountry,limit=10){
     }
     // GAS returned empty — try direct
     if(d&&d.error) console.warn('ReliefWeb GAS error:',d.error);
-    // 2) Direct POST fallback
-    try{
-      const conditions=[{field:'date.created',value:{from:daysAgo(90)},operator:'>='}];
-      if(rwCountry) conditions.push({field:'primary_country.name',value:rwCountry,operator:'contains'});
-      const body={limit,filter:{operator:'AND',conditions},fields:{include:['title','date.created','primary_country','url_alias']},sort:['date.created:desc']};
-      const r=await fetch('https://api.reliefweb.int/v2/reports?appname=umn-koicakmdashboard-et7gg',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(8000)
-      });
-      if(r.ok){const d2=await r.json();return{total:d2.totalCount||0,items:d2.data||[]};}
-    }catch(e){}
+    // GAS only — direct ReliefWeb calls blocked (CORS + appname 400)
     return null;
   }catch(e){return null}
 }
@@ -607,26 +598,12 @@ async function fetchHDX(wbCode){
   }catch(e){return null}
 }
 
-/* ── HDX Global: try multiple portfolio countries ── */
+/* ── HDX Global: try via GAS only (CORS blocked in browser) ── */
 async function fetchHDXGlobal(){
-  // Try countries sequentially — return first with any data
   const priorityCodes=['SOM','YEM','SSD','SYR','CAF','MLI'];
   for(const code of priorityCodes){
-    try{
-      // Direct HDX v2 call (bypass GAS count=0 issue)
-      const r=await fetch(
-        `https://hapi.humdata.org/api/v2/food-security-nutrition-poverty/food-security?location_code=${code}&limit=1&offset=0`,
-        {signal:AbortSignal.timeout(6000)}
-      );
-      if(r.ok){
-        const d=await r.json();
-        if(d.metadata&&d.metadata.total>0) return{count:d.metadata.total,code};
-        if((d.data||[]).length>0) return{count:d.data.length,code};
-      }
-    }catch(e){}
-    // GAS fallback
-    const d=await fetchHDX(code);
-    if(d&&d.count!=null) return d;
+    const d=await gasGet({source:'hdx',country:code});
+    if(d&&d.count!=null&&d.count>0) return{count:d.count,code};
   }
   return null;
 }
