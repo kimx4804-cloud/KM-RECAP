@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FCV/KOICA Knowledge Management System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f6fa;--bg2:#fff;--bg3:#edf0f7;
+  --border:rgba(0,0,0,0.07);--border2:rgba(0,0,0,0.13);
+  --text:#18243a;--text2:#556070;--text3:#a8b4c0;
+  --accent:#1a6fd4;--accent-light:#e8f0fd;
+  --green:#1a7a38;--amber:#9a6500;--red:#c0392b;
+  --font:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
+  --r:8px;--rl:12px;
+}
+html{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
+body{min-height:100vh}
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sb-logo{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
+.sb-logo-tag{font-size:10px;font-weight:500;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;margin-bottom:3px}
+.sb-logo-title{font-size:12px;font-weight:500;color:var(--text);line-height:1.4}
+.sb-logo-sub{font-size:10px;color:var(--text3);margin-top:1px}
+.sb-sec{padding:12px 14px 6px}
+.sb-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);font-weight:500;margin-bottom:6px}
+.nav-btn{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r);font-size:12px;color:var(--text2);cursor:pointer;transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nav-btn:hover{background:rgba(26,111,212,.05);color:var(--text)}
+.nav-btn.active{background:var(--accent-light);color:var(--accent);font-weight:500;border:1px solid rgba(26,111,212,.2)}
+.nav-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.globe-icon{width:16px;height:16px;flex-shrink:0;color:var(--accent)}
+.sb-search{padding:6px 14px 10px}
+.sb-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-family:var(--font);font-size:11px;color:var(--text);outline:none;transition:border .15s}
+.sb-input:focus{border-color:var(--accent)}
+.sb-input::placeholder{color:var(--text3)}
+.ctags{display:flex;flex-wrap:wrap;gap:3px;padding:2px 14px 12px}
+.ctag{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .15s;line-height:1.4}
+.ctag:hover{border-color:var(--accent);color:var(--accent)}
+.ctag.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.ctag-region{width:100%;font-size:9px;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;margin:5px 0 2px;padding:0 1px}
+.sb-footer{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);line-height:1.5}
+
+/* ── TOPBAR ── */
+.topbar{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg);position:sticky;top:0;z-index:10;gap:12px}
+.topbar-left{display:flex;align-items:center;gap:10px;min-width:0}
+.view-badge{font-size:10px;padding:3px 10px;border-radius:20px;background:var(--accent-light);border:1px solid rgba(26,111,212,.2);color:var(--accent);font-weight:500;white-space:nowrap}
+.topbar-title{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.refresh-btn{display:flex;align-items:center;gap:5px;font-size:11px;padding:5px 11px;border:1px solid var(--border2);border-radius:var(--r);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.refresh-btn.spinning{color:var(--accent);border-color:var(--accent)}
+
+/* ── MAIN ── */
+.main{overflow-y:auto}
+.view{display:none;padding:20px 24px}
+.view.active{display:block}
+
+/* ── MAP ── */
+.map-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}
+.map-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.map-head-title{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:.05em;text-transform:uppercase}
+.map-hint{font-size:10px;color:var(--text3)}
+.map-zoom{display:flex;gap:4px}
+.zoom-btn{padding:2px 8px;font-size:12px;border:1px solid var(--border2);background:var(--bg3);border-radius:6px;cursor:pointer;color:var(--text2);line-height:1.4}
+.zoom-btn:hover{border-color:var(--accent);color:var(--accent)}
+#world-map{width:100%;height:260px;display:block;overflow:hidden;cursor:grab}
+.map-legend{display:flex;gap:14px;padding:10px 16px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border)}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+
+/* ── METRIC GRID ── */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.mc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:14px 15px;position:relative;overflow:hidden;min-height:100px}
+.mc.loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(26,111,212,.05),transparent);animation:shimmer 1.4s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.mc-src{font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.mc-label{font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.3}
+.mc-val{font-size:24px;font-weight:500;color:var(--text);font-family:var(--mono);line-height:1}
+.mc-sub{font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4}
+.mc-err{font-size:10px;color:var(--red);margin-top:5px}
+.mc-link{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:10px;padding:6px 10px;background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.2);border-radius:var(--r);text-decoration:none;font-size:11px;font-weight:500;color:#c0392b;transition:all .15s}
+.mc-link:hover{background:rgba(248,81,73,.13)}
+
+/* ── FEED ── */
+.feed-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}
+.feed-head{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.feed-head-title{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:.05em;text-transform:uppercase}
+.feed-badge{font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);color:var(--green)}
+.feed-list{max-height:200px;overflow-y:auto}
+.feed-item{padding:9px 16px;border-bottom:1px solid var(--border);display:flex;gap:9px;align-items:flex-start}
+.feed-item:last-child{border-bottom:none}
+.feed-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px}
+.feed-title{font-size:11px;color:var(--text);line-height:1.4}
+.feed-title a{color:var(--accent);text-decoration:none}
+.feed-title a:hover{text-decoration:underline}
+.feed-meta{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.feed-msg{padding:20px 16px;font-size:11px;color:var(--text3);text-align:center}
+
+/* ── SECTION HEADER ── */
+.sec-head{display:flex;align-items:center;gap:8px;margin:20px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.sec-head-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sec-head-title{font-size:12px;font-weight:500;color:var(--text)}
+.sec-head-count{font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* ── INDICATOR CARDS ── */
+.ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.ind-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:13px 14px}
+.ind-card:hover{border-color:var(--border2)}
+.ind-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.ind-name{font-size:12px;font-weight:500;color:var(--text);line-height:1.3}
+.str-badge{font-size:9px;padding:2px 6px;border-radius:20px;white-space:nowrap;flex-shrink:0;font-weight:500}
+.s-strong{background:rgba(26,122,56,.08);color:var(--green);border:1px solid rgba(26,122,56,.2)}
+.s-good{background:rgba(154,101,0,.08);color:var(--amber);border:1px solid rgba(154,101,0,.2)}
+.s-moderate{background:rgba(192,57,43,.08);color:var(--red);border:1px solid rgba(192,57,43,.2)}
+.src-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
+.src-a{font-size:10px;padding:2px 7px;border-radius:var(--r);text-decoration:none;display:inline-flex;align-items:center;gap:2px;transition:all .15s;font-family:var(--mono)}
+.src-a.p{background:rgba(26,111,212,.07);border:1px solid rgba(26,111,212,.22);color:var(--accent)}
+.src-a.p:hover{background:rgba(26,111,212,.14)}
+.src-a.b{background:var(--bg3);border:1px solid var(--border);color:var(--text2)}
+.src-a.b:hover{border-color:var(--border2);color:var(--text)}
+.ind-note{font-size:10px;color:var(--text2);line-height:1.5;border-top:1px solid var(--border);padding-top:7px}
+
+/* ── HIERARCHY ── */
+.hier-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}
+.hier-head{padding:11px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:500;color:var(--text2);letter-spacing:.05em;text-transform:uppercase}
+.hier-grid{display:grid;grid-template-columns:1fr 1fr}
+.hier-col{padding:13px 16px;border-right:1px solid var(--border)}
+.hier-col:last-child{border-right:none}
+.hier-num{font-size:9px;font-family:var(--mono);color:var(--text3);margin-bottom:2px}
+.hier-title{font-size:11px;font-weight:500;color:var(--text);margin-bottom:4px}
+.hier-desc{font-size:10px;color:var(--text2);margin-bottom:6px;line-height:1.4}
+.hier-tags{display:flex;flex-wrap:wrap;gap:3px}
+.hier-tag{font-size:9px;padding:2px 5px;border-radius:4px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);font-family:var(--mono)}
+
+/* ── DISCLAIMER ── */
+.disc-wrap{border:1px solid rgba(154,101,0,.18);border-radius:var(--rl);overflow:hidden;margin-bottom:24px}
+.disc-head{background:rgba(154,101,0,.05);padding:10px 16px;border-bottom:1px solid rgba(154,101,0,.13);display:flex;align-items:center;gap:7px;font-size:11px;font-weight:500;color:#9a6500;letter-spacing:.04em;text-transform:uppercase}
+.disc-grid{padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.disc-item p:first-child{font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px}
+.disc-item p:last-child{font-size:11px;color:var(--text2);line-height:1.6}
+.disc-footer{grid-column:1/-1;padding-top:10px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);line-height:1.6}
+
+/* ── COUNTRY HERO ── */
+.country-hero{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px 18px;margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.country-hero-name{font-size:22px;font-weight:500;color:var(--text);margin-bottom:2px}
+.country-hero-region{font-size:11px;color:var(--text3)}
+.country-hero-links{display:flex;flex-wrap:wrap;gap:6px}
+.hero-link{font-size:11px;padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);text-decoration:none;transition:all .15s;display:inline-flex;align-items:center;gap:4px}
+.hero-link:hover{border-color:var(--accent);color:var(--accent)}
+.hero-link.acled{background:rgba(248,81,73,.07);border-color:rgba(248,81,73,.22);color:#c0392b}
+.hero-link.acled:hover{background:rgba(248,81,73,.13)}
+
+.ind-live{margin-bottom:8px;padding:7px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent)}
+.ind-live-val{font-size:18px;font-weight:500;color:var(--text);font-family:var(--mono);line-height:1.2}
+.ind-live-year{display:block;font-size:9px;color:var(--text3);margin-top:2px;font-family:var(--mono);font-weight:400}
+.ind-live-loading{font-size:10px;color:var(--text3);font-style:italic}
+.ind-live-na{font-size:10px;color:var(--text3)}
+.ind-ext-link{display:inline-flex;align-items:center;margin-bottom:8px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--text3);gap:5px}
+.ind-ext-link .ind-ext-src{color:var(--accent);text-decoration:none;font-size:10px}
+
+.tooltip{position:fixed;background:#fff;border:1px solid var(--border2);border-radius:var(--r);padding:7px 11px;font-size:11px;color:var(--text);pointer-events:none;z-index:200;opacity:0;transition:opacity .15s;max-width:180px;line-height:1.4;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+@media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{position:static;height:auto}.ind-grid{grid-template-columns:1fr}.hier-grid,.disc-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="tooltip" id="tooltip"></div>
+<div class="shell">
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-tag">KOICA · FCV Program</div>
+    <div class="sb-logo-title">Knowledge Management System</div>
+    <div class="sb-logo-sub">Live external data · 20 target countries</div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-lbl">View</div>
+    <button class="nav-btn active" id="btn-global" onclick="showGlobal()">
+      <svg class="globe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Global dashboard
+    </button>
+  </div>
+
+  <div class="sb-sec" style="padding-bottom:4px">
+    <div class="sb-lbl">Country dashboard</div>
+  </div>
+  <div class="sb-search">
+    <input class="sb-input" type="text" placeholder="Search country…" oninput="searchCountry(this.value)">
+  </div>
+  <div class="ctags" id="ctags"></div>
+
+  <div class="sb-sec" style="padding-top:8px">
+    <div class="sb-lbl">Indicator domain</div>
+    <button class="nav-btn active" id="dom-all" onclick="setDomain('all',this)"><span class="nav-dot" style="background:#8b949e"></span>All</button>
+    <button class="nav-btn" onclick="setDomain('conflict',this)"><span class="nav-dot" style="background:#f85149"></span>Conflict</button>
+    <button class="nav-btn" onclick="setDomain('displacement',this)"><span class="nav-dot" style="background:#d29922"></span>Displacement</button>
+    <button class="nav-btn" onclick="setDomain('humanitarian',this)"><span class="nav-dot" style="background:#3fb950"></span>Humanitarian</button>
+    <button class="nav-btn" onclick="setDomain('climate',this)"><span class="nav-dot" style="background:#2d8cf0"></span>Climate & disaster</button>
+    <button class="nav-btn" onclick="setDomain('governance',this)"><span class="nav-dot" style="background:#bc8cff"></span>Governance</button>
+    <button class="nav-btn" onclick="setDomain('health',this)"><span class="nav-dot" style="background:#79c0ff"></span>Health & services</button>
+    <button class="nav-btn" onclick="setDomain('population',this)"><span class="nav-dot" style="background:#ffa657"></span>Population</button>
+  </div>
+
+  <div class="sb-footer">Live: ReliefWeb · World Bank · UNHCR · HDX HAPI · GDACS<br>Conflict: ACLED/HDX · Annual: ND-GAIN · INFORM</div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="view-badge" id="view-badge">Global</span>
+      <span class="topbar-title" id="topbar-title">Portfolio overview — 20 FCV target countries</span>
+    </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="refreshData()">↻ Refresh data</button>
+  </div>
+
+  <!-- ═══ GLOBAL VIEW ═══ -->
+  <div class="view active" id="view-global">
+
+    <!-- Map -->
+    <div class="map-wrap">
+      <div class="map-head">
+        <span class="map-head-title">KOICA FCV country portfolio</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="map-hint">Click country → country dashboard · scroll to zoom</span>
+          <div class="map-zoom">
+            <button class="zoom-btn" onclick="zoomMap(1.5)">+</button>
+            <button class="zoom-btn" onclick="zoomMap(0.67)">−</button>
+            <button class="zoom-btn" style="font-size:10px" onclick="resetZoom()">Reset</button>
+          </div>
+        </div>
+      </div>
+      <svg id="world-map"></svg>
+      <div class="map-legend">
+        <div class="leg-item"><span class="leg-dot" style="background:#1a6fd4"></span>KOICA FCV target (20개국)</div>
+        <div class="leg-item"><span class="leg-dot" style="background:#f0a500"></span>Selected</div>
+        <div class="leg-item"><span class="leg-dot" style="background:#d0d8e4"></span>Other</div>
+        <div style="margin-left:auto;font-size:10px;color:var(--text3)">Africa 10 · Middle East/CIS 7 · Asia 3</div>
+      </div>
+    </div>
+
+    <!-- Global metrics -->
+    <div class="metric-grid" id="global-metrics">
+      <div class="mc loading" id="gm-refugees">
+        <div class="mc-src">UNHCR · latest</div>
+        <div class="mc-label">Total refugees from target countries</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="gm-idps">
+        <div class="mc-src">UNHCR · latest</div>
+        <div class="mc-label">Total IDPs in target countries</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="gm-population">
+        <div class="mc-src">World Bank · latest</div>
+        <div class="mc-label">Total population (portfolio)</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="gm-reports">
+        <div class="mc-src">ReliefWeb · 90 days</div>
+        <div class="mc-label">Humanitarian reports</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="gm-food">
+        <div class="mc-src">HDX HAPI</div>
+        <div class="mc-label">Food insecurity data points</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="gm-conflict">
+        <div class="mc-src">ACLED · HDX</div>
+        <div class="mc-label">Conflict events & fatalities</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ReliefWeb feed -->
+    <div class="feed-wrap">
+      <div class="feed-head">
+        <span class="feed-head-title">Latest humanitarian situation reports</span>
+        <span class="feed-badge">ReliefWeb · live</span>
+      </div>
+      <div class="feed-list" id="global-feed"><div class="feed-msg">Loading reports…</div></div>
+    </div>
+
+    <!-- Source hierarchy -->
+    <div class="hier-wrap">
+      <div class="hier-head">Recommended data source hierarchy</div>
+      <div class="hier-grid">
+        <div class="hier-col">
+          <div class="hier-num">Level 1 — automated external</div>
+          <div class="hier-title">Real-time & annual public data</div>
+          <div class="hier-desc">Country risk, conflict, displacement, disaster, climate, governance</div>
+          <div class="hier-tags"><span class="hier-tag">ACLED</span><span class="hier-tag">ReliefWeb</span><span class="hier-tag">HDX HAPI</span><span class="hier-tag">UNHCR</span><span class="hier-tag">World Bank</span><span class="hier-tag">INFORM</span><span class="hier-tag">ND-GAIN</span><span class="hier-tag">GDACS</span></div>
+        </div>
+        <div class="hier-col">
+          <div class="hier-num">Level 2 — semi-automated agency</div>
+          <div class="hier-title">Humanitarian agency data</div>
+          <div class="hier-desc">Needs, 4W/5W, sector-specific progress, operational updates</div>
+          <div class="hier-tags"><span class="hier-tag">HDX datasets</span><span class="hier-tag">UNHCR ODP</span><span class="hier-tag">IOM DTM</span><span class="hier-tag">OCHA HNO</span><span class="hier-tag">IFRC GO</span><span class="hier-tag">UNICEF</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicator directory -->
+    <div id="global-indicators"></div>
+
+    <!-- Disclaimer -->
+    <div class="disc-wrap">
+      <div class="disc-head">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z" fill="#9a6500"/><path d="M7.25 6.75a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5zM8 4.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" fill="#9a6500"/></svg>
+        Data use notice & disclaimer
+      </div>
+      <div class="disc-grid">
+        <div class="disc-item"><p>Source accountability</p><p>All indicators draw exclusively from third-party public datasets. Accuracy, completeness, and timeliness are the responsibility of the respective originating organizations. KOICA does not independently verify or guarantee the correctness of externally sourced data.</p></div>
+        <div class="disc-item"><p>Intended use</p><p>This dashboard is a contextual monitoring tool to support situational awareness in FCV settings. It is not intended as the sole basis for operational or funding decisions. Triangulate with field reports and partner assessments before drawing programmatic conclusions.</p></div>
+        <div class="disc-item"><p>Data currency & update lag</p><p>Update frequencies vary — near-real-time (ACLED, ReliefWeb, GDACS) to annual (World Bank WGI, ND-GAIN). Annual indicators may not reflect rapid on-the-ground changes in FCV contexts.</p></div>
+        <div class="disc-item"><p>Coverage limitations</p><p>Small island states (Solomon Islands, São Tomé & Príncipe, Comoros) and conflict-affected states may have incomplete or absent data. Absence of data should not be interpreted as absence of risk.</p></div>
+        <div class="disc-footer"><strong style="color:var(--text2);font-weight:500">Version note:</strong> Source APIs are subject to change without notice. Links to external sources are for reference only; KOICA does not endorse any third-party platform or guarantee continued availability.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ COUNTRY VIEW ═══ -->
+  <div class="view" id="view-country">
+    <div class="country-hero" id="country-hero">
+      <div>
+        <div class="country-hero-name" id="ch-name">—</div>
+        <div class="country-hero-region" id="ch-region">—</div>
+      </div>
+      <div class="country-hero-links" id="ch-links"></div>
+    </div>
+
+    <div class="metric-grid" id="country-metrics">
+      <div class="mc loading" id="cm-refugees">
+        <div class="mc-src">UNHCR · latest</div>
+        <div class="mc-label">Refugees</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="cm-idps">
+        <div class="mc-src">UNHCR · latest</div>
+        <div class="mc-label">IDPs</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="cm-population">
+        <div class="mc-src">World Bank · latest</div>
+        <div class="mc-label">Population</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="cm-reports">
+        <div class="mc-src">ReliefWeb · 90 days</div>
+        <div class="mc-label">Humanitarian reports</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="cm-food">
+        <div class="mc-src">HDX HAPI</div>
+        <div class="mc-label">Food insecurity data points</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+      <div class="mc loading" id="cm-conflict">
+        <div class="mc-src">ACLED · HDX</div>
+        <div class="mc-label">Conflict events & fatalities</div>
+        <div class="mc-val">—</div>
+        <div class="mc-sub">Loading…</div>
+      </div>
+    </div>
+
+    <div class="feed-wrap">
+      <div class="feed-head">
+        <span class="feed-head-title" id="country-feed-title">Latest reports</span>
+        <span class="feed-badge">ReliefWeb · live</span>
+      </div>
+      <div class="feed-list" id="country-feed"><div class="feed-msg">Loading…</div></div>
+    </div>
+
+    <div id="country-indicators"></div>
+  </div>
+
+</main>
+</div>
+
+<script>
+/* ══ DATA ══ */
+const COUNTRIES=[
+  {name:'Kenya',iso:'404',wb:'KEN',rw:'kenya',region:'Africa'},
+  {name:'Guinea',iso:'324',wb:'GIN',rw:'guinea',region:'Africa'},
+  {name:'Somalia',iso:'706',wb:'SOM',rw:'somalia',region:'Africa'},
+  {name:'South Sudan',iso:'728',wb:'SSD',rw:'south-sudan',region:'Africa'},
+  {name:'São Tomé & Príncipe',iso:'678',wb:'STP',rw:'sao-tome-and-principe',region:'Africa'},
+  {name:'Burundi',iso:'108',wb:'BDI',rw:'burundi',region:'Africa'},
+  {name:'CAR',iso:'140',wb:'CAF',rw:'central-african-republic',region:'Africa'},
+  {name:'Mali',iso:'466',wb:'MLI',rw:'mali',region:'Africa'},
+  {name:'Zimbabwe',iso:'716',wb:'ZWE',rw:'zimbabwe',region:'Africa'},
+  {name:'Comoros',iso:'174',wb:'COM',rw:'comoros',region:'Africa'},
+  {name:'Lebanon',iso:'422',wb:'LBN',rw:'lebanon',region:'Middle East/CIS'},
+  {name:'Jordan',iso:'400',wb:'JOR',rw:'jordan',region:'Middle East/CIS'},
+  {name:'Yemen',iso:'887',wb:'YEM',rw:'yemen',region:'Middle East/CIS'},
+  {name:'Iran',iso:'364',wb:'IRN',rw:'iran',region:'Middle East/CIS'},
+  {name:'Syria',iso:'760',wb:'SYR',rw:'syrian-arab-republic',region:'Middle East/CIS'},
+  {name:'Palestine',iso:'275',wb:'PSE',rw:'occupied-palestinian-territory',region:'Middle East/CIS'},
+  {name:'Armenia',iso:'051',wb:'ARM',rw:'armenia',region:'Middle East/CIS'},
+  {name:'Papua New Guinea',iso:'598',wb:'PNG',rw:'papua-new-guinea',region:'Asia'},
+  {name:'Timor-Leste',iso:'626',wb:'TLS',rw:'timor-leste',region:'Asia'},
+  {name:'Solomon Islands',iso:'090',wb:'SLB',rw:'solomon-islands',region:'Asia'},
+];
+
+const INDICATORS=[
+  {domain:'conflict',color:'#f85149',name:'Conflict events count',strength:'strong',sl:'Strong',link:{l:'↗ View on ACLED',u:'https://acleddata.com/conflict-data/data-export-tool/'},p:[{l:'ACLED event data',u:'https://acleddata.com/conflict-data'}],b:[{l:'ReliefWeb',u:'https://apidoc.reliefweb.int'}],note:'Monthly political violence/protest events by country or admin area. Near-real-time.'},
+  {domain:'conflict',color:'#f85149',name:'Conflict fatalities',strength:'strong',sl:'Strong — label as reported',link:{l:'↗ View on ACLED',u:'https://acleddata.com/conflict-data/data-export-tool/'},p:[{l:'ACLED fatality field',u:'https://acleddata.com/knowledge-base/codebook/'}],b:[{l:'UCDP',u:'https://ucdp.uu.se/'},{l:'ReliefWeb',u:'https://apidoc.reliefweb.int'}],note:'Monthly reported fatalities. Always display as indicative — ACLED notes estimates may be revised.'},
+  {domain:'conflict',color:'#f85149',name:'Civilian exposure to conflict',strength:'strong',sl:'Strong',link:{l:'↗ ACLED Exposure Calculator',u:'https://acleddata.com/series/data-platforms'},p:[{l:'ACLED Exposure Calculator',u:'https://acleddata.com/series/data-platforms'}],b:[{l:'WorldPop',u:'https://www.worldpop.org/'}],note:'Estimated population living near conflict events.'},
+  {domain:'conflict',color:'#f85149',name:'Conflict forecast / escalation risk',strength:'good',sl:'Useful — keep separate',link:{l:'↗ View ACLED CAST',u:'https://acleddata.com/conflict-data'},p:[{l:'ACLED CAST',u:'https://acleddata.com/conflict-data'}],b:[{l:'INFORM risk trend',u:'https://drmkc.jrc.ec.europa.eu/inform-index'},{l:'ReliefWeb',u:'https://apidoc.reliefweb.int'}],note:'Forward-looking alert for next 4–24 weeks. Display clearly as forecast, not observed data.'},
+  {domain:'displacement',color:'#d29922',name:'Refugees',strength:'strong',sl:'Strong',src:'unhcr-refugees',p:[{l:'UNHCR Refugee Statistics API',u:'https://api.unhcr.org/docs/refugee-statistics.html'}],b:[{l:'UNHCR ODP',u:'https://data.unhcr.org/en/'},{l:'HDX HAPI',u:'https://hdx-hapi.readthedocs.io/'}],note:'Refugees by country of origin and asylum, by year. Nearly 70 years of coverage.'},
+  {domain:'displacement',color:'#d29922',name:'IDPs',strength:'strong',sl:'Strong — coverage varies',src:'unhcr-idps',p:[{l:'UNHCR Refugee Statistics API',u:'https://api.unhcr.org/docs/refugee-statistics.html'}],b:[{l:'IOM DTM',u:'https://dtm.iom.int/'},{l:'HDX HAPI',u:'https://hdx-hapi.readthedocs.io/'}],note:'Internal displacement trend. DTM often better for operational movement tracking.'},
+  {domain:'displacement',color:'#d29922',name:'Returnees / cross-border movements',strength:'strong',sl:'Strong for refugee contexts',src:'unhcr-returnees',p:[{l:'UNHCR Operational Data Portal',u:'https://data.unhcr.org/en/'}],b:[{l:'IOM DTM',u:'https://dtm.iom.int/'}],note:'Population movement pressure indicator. Coverage variable for non-UNHCR operations.'},
+  {domain:'humanitarian',color:'#3fb950',name:'Humanitarian report volume',strength:'strong',sl:'Very strong',src:'rw-count',p:[{l:'ReliefWeb API',u:'https://apidoc.reliefweb.int/'}],b:[{l:'HDX dataset updates',u:'https://hdx-hapi.readthedocs.io/'}],note:'Number of reports in last 30/90 days by country or theme. Continuously updated.'},
+  {domain:'humanitarian',color:'#3fb950',name:'Latest humanitarian situation updates',strength:'strong',sl:'Strong — narrative',src:'rw-count',p:[{l:'ReliefWeb reports endpoint',u:'https://apidoc.reliefweb.int/'}],b:[{l:'UNHCR ODP',u:'https://data.unhcr.org/en/'},{l:'OCHA sitreps',u:'https://www.unocha.org/'}],note:'Feed of latest situation reports, maps, assessments.'},
+  {domain:'humanitarian',color:'#3fb950',name:'Food insecurity',strength:'strong',sl:'Strong where IPC/CH exists',src:'hdx-food',p:[{l:'HDX HAPI food security',u:'https://hdx-hapi.readthedocs.io/'}],b:[{l:'IPC/CH',u:'https://www.ipcinfo.org/'},{l:'WFP HungerMap',u:'https://hungermap.wfp.org/'}],note:'IPC phase / people in crisis or worse. Patchy outside IPC/CH system.'},
+  {domain:'humanitarian',color:'#3fb950',name:'Humanitarian needs / people in need',strength:'strong',sl:'Strong for HNO countries',src:'hdx-needs',p:[{l:'HDX HAPI',u:'https://hdx-hapi.readthedocs.io/'}],b:[{l:'OCHA HNO/HRP',u:'https://www.unocha.org/'},{l:'ReliefWeb HNO',u:'https://apidoc.reliefweb.int/'}],note:'People in need by sector, country, year. May be unavailable for some KOICA countries.'},
+  {domain:'climate',color:'#2d8cf0',name:'Disaster events / hazard events',strength:'strong',sl:'Strong — real-time',src:'gdacs-events',p:[{l:'GDACS API',u:'https://www.gdacs.org/gdacsapi/api/events/geteventlist/events4app'}],b:[{l:'ReliefWeb disaster',u:'https://apidoc.reliefweb.int/'},{l:'HDX',u:'https://hdx-hapi.readthedocs.io/'}],note:'Real-time disaster events by alert level (Red/Orange/Green). Covers earthquakes, floods, tropical cyclones, volcanoes, wildfires, droughts. Free API — no registration required.'},
+  {domain:'climate',color:'#2d8cf0',name:'Disaster severity & affected population',strength:'strong',sl:'Strong — real-time',src:'gdacs-severity',p:[{l:'GDACS API',u:'https://www.gdacs.org/gdacsapi/api/events/geteventlist/events4app'}],b:[{l:'ReliefWeb',u:'https://apidoc.reliefweb.int/'},{l:'OCHA',u:'https://www.unocha.org/'}],note:'Disaster severity and affected population estimates. For validated historical totals, EM-DAT remains the gold standard — use GDACS for current monitoring.'},
+  {domain:'climate',color:'#2d8cf0',name:'Climate vulnerability score',strength:'strong',sl:'Strong',src:'ndgain-vuln',p:[{l:'ND-GAIN vulnerability index',u:'https://gain.nd.edu/our-work/country-index/download-data/'}],b:[{l:'INFORM hazard/exposure',u:'https://drmkc.jrc.ec.europa.eu/inform-index'},{l:'World Bank climate',u:'https://data.worldbank.org/'}],note:'Annual national climate vulnerability ranking and score. No public API — download CSV.'},
+  {domain:'climate',color:'#2d8cf0',name:'Climate readiness score',strength:'strong',sl:'Strong',src:'ndgain-ready',p:[{l:'ND-GAIN readiness index',u:'https://gain.nd.edu/our-work/country-index/methodology/indicators/'}],b:[{l:'WGI governance',u:'https://www.worldbank.org/en/publication/worldwide-governance-indicators/documentation'}],note:'Annual readiness and adaptive-capacity score. No public API — download CSV.'},
+  {domain:'climate',color:'#2d8cf0',name:'Rainfall / climate hazard',strength:'good',sl:'Good — automated monitoring',src:'hdx-rainfall',p:[{l:'HDX HAPI rainfall endpoint',u:'https://hdx-hapi.readthedocs.io/'}],b:[{l:'CHIRPS',u:'https://www.chc.ucsb.edu/data/chirps'},{l:'ERA5',u:'https://cds.climate.copernicus.eu/'}],note:'Rainfall hazard data points from HDX HAPI climate/hazards endpoint.'},
+  {domain:'climate',color:'#2d8cf0',name:'Overall humanitarian risk',strength:'strong',sl:'Strong — INFORM',src:'inform-risk',p:[{l:'INFORM Risk Index',u:'https://drmkc.jrc.ec.europa.eu/inform-index/INFORM-Risk/Results-and-data/moduleId/1782/id/433/controller/Admin/action/Results'}],b:[{l:'ND-GAIN',u:'https://gain.nd.edu/'},{l:'ACLED',u:'https://acleddata.com/'}],note:'Composite country risk: hazards/exposure, vulnerability, coping capacity. Annual — download Excel.'},
+  {domain:'governance',color:'#bc8cff',name:'Governance effectiveness',strength:'strong',sl:'Strong',wb:'GE.EST',p:[{l:'World Bank WGI',u:'https://www.worldbank.org/en/publication/worldwide-governance-indicators/documentation'}],b:[{l:'Fragile States Index',u:'https://fragilestatesindex.org/'},{l:'V-Dem',u:'https://v-dem.net/'}],note:'Annual governance estimate (-2.5 to 2.5 scale). WGI covers 200+ economies across six dimensions.'},
+  {domain:'governance',color:'#bc8cff',name:'Political stability / non-violence',strength:'strong',sl:'Strong — annual/lagged',wb:'VC.IHR.PSRC.P5',p:[{l:'World Bank WGI',u:'https://www.worldbank.org/en/publication/worldwide-governance-indicators/documentation'}],b:[{l:'ACLED conflict trends',u:'https://acleddata.com/'}],note:'Annual structural risk. Triangulate with live ACLED events.'},
+  {domain:'governance',color:'#bc8cff',name:'Control of corruption',strength:'strong',sl:'Strong — structural risk',wb:'CC.EST',p:[{l:'World Bank WGI',u:'https://www.worldbank.org/en/publication/worldwide-governance-indicators/documentation'}],b:[{l:'Transparency International CPI',u:'https://www.transparency.org/en/cpi'}],note:'Corruption estimate (-2.5 to 2.5 scale). Structural governance risk variable.'},
+  {domain:'governance',color:'#bc8cff',name:'Rule of law',strength:'strong',sl:'Strong nationally',wb:'RL.EST',p:[{l:'World Bank WGI',u:'https://www.worldbank.org/en/publication/worldwide-governance-indicators/documentation'}],b:[{l:'World Justice Project',u:'https://worldjusticeproject.org/'}],note:'Rule of law estimate (-2.5 to 2.5 scale). Institutional risk and delivery environment context.'},
+  {domain:'health',color:'#79c0ff',name:'Health system capacity',strength:'strong',sl:'Strong — annual',wb:'SH.MED.BEDS.ZS',p:[{l:'World Bank Indicators API',u:'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392'}],b:[{l:'WHO Global Health Observatory',u:'https://www.who.int/data/gho'},{l:'ND-GAIN health capacity',u:'https://gain.nd.edu/our-work/country-index/methodology/indicators/'}],note:'Hospital beds per 1,000 people (World Bank).'},
+  {domain:'health',color:'#79c0ff',name:'Access to drinking water',strength:'strong',sl:'Strong',wb:'SH.H2O.BASW.ZS',p:[{l:'World Bank WDI',u:'https://data.worldbank.org/'}],b:[{l:'WHO-UNICEF JMP',u:'https://washdata.org/'},{l:'ND-GAIN water',u:'https://gain.nd.edu/our-work/country-index/methodology/indicators/'}],note:'% population using safely managed or basic drinking water.'},
+  {domain:'health',color:'#79c0ff',name:'Access to sanitation',strength:'strong',sl:'Strong',wb:'SH.STA.BASS.ZS',p:[{l:'World Bank WDI',u:'https://data.worldbank.org/'}],b:[{l:'WHO-UNICEF JMP',u:'https://washdata.org/'}],note:'% population using basic or safely managed sanitation.'},
+  {domain:'health',color:'#79c0ff',name:'Electricity access',strength:'strong',sl:'Strong',wb:'EG.ELC.ACCS.ZS',p:[{l:'World Bank WDI',u:'https://data.worldbank.org/'}],b:[{l:'ND-GAIN infrastructure',u:'https://gain.nd.edu/our-work/country-index/methodology/indicators/'}],note:'% population with access to electricity.'},
+  {domain:'health',color:'#79c0ff',name:'Education / school continuity',strength:'moderate',sl:'Moderate — varies',wb:'SE.PRM.ENRR',p:[{l:'World Bank WDI',u:'https://data.worldbank.org/'}],b:[{l:'UNICEF Data',u:'https://data.unicef.org/'},{l:'UNESCO UIS',u:'https://uis.unesco.org/'}],note:'Primary school enrollment rate (World Bank).'},
+  {domain:'population',color:'#ffa657',name:'National population',strength:'strong',sl:'Strong',wb:'SP.POP.TOTL',p:[{l:'World Bank Indicators API',u:'https://datahelpdesk.worldbank.org/knowledgebase/articles/889392'}],b:[{l:'WorldPop',u:'https://www.worldpop.org/'}],note:'Denominator for rates per 100,000 population.'},
+  {domain:'population',color:'#ffa657',name:'Subnational population exposure',strength:'good',sl:'Good — HDX HAPI',src:'hdx-subpop',p:[{l:'WorldPop',u:'https://www.worldpop.org/'}],b:[{l:'HDX COD population',u:'https://data.humdata.org/'}],note:'Admin-1/admin-2 denominator and exposure estimation.'},
+];
+
+const DOMAIN_LABELS={all:'All',conflict:'Conflict',displacement:'Displacement',humanitarian:'Humanitarian',climate:'Climate & disaster',governance:'Governance',health:'Health & services',population:'Population'};
+
+/* ══ STATE ══ */
+let currentView='global', currentCountry=null, currentDomain='all', allCountries=[...COUNTRIES];
+
+/* ══ UTILS ══ */
+const fmt=n=>{if(n==null||isNaN(n)||n===0)return'—';n=Math.round(n);if(n>=1e9)return(n/1e9).toFixed(1)+'B';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(0)+'K';return n.toLocaleString()};
+const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0]};
+const today=()=>new Date().toISOString().split('T')[0];
+
+function setMC(id,val,sub,err){
+  const c=document.getElementById(id);if(!c)return;
+  c.classList.remove('loading');
+  const v=c.querySelector('.mc-val');if(v)v.textContent=val||'—';
+  const s=c.querySelector('.mc-sub');
+  if(s){if(err)s.innerHTML=`<span style="color:var(--red)">${err}</span>`;else if(sub)s.textContent=sub;}
+}
+
+/* ══ API CALLS ══ */
+/* ── World Bank: confirmed CORS-open ── */
+async function fetchWB(wbCodes){
+  try{
+    // Split into chunks of 10 (WB URL limit)
+    const chunks=[];
+    for(let i=0;i<wbCodes.length;i+=10) chunks.push(wbCodes.slice(i,i+10));
+    let pop=0;
+    for(const chunk of chunks){
+      const url=`https://api.worldbank.org/v2/country/${chunk.join(';')}/indicator/SP.POP.TOTL?format=json&mrv=1&per_page=20`;
+      const r=await fetch(url,{mode:'cors'});
+      if(!r.ok) continue;
+      const d=await r.json();
+      (d[1]||[]).forEach(i=>{if(i.value)pop+=i.value});
+    }
+    return pop>0?{population:pop}:null;
+  }catch(e){return null}
+}
+
+/* ── World Bank multi-indicator for country ── */
+async function fetchWBCountry(wb){
+  try{
+    const indicators=['SP.POP.TOTL','SH.H2O.BASW.ZS','SH.STA.BASS.ZS','EG.ELC.ACCS.ZS','NY.GDP.PCAP.CD'];
+    const results={};
+    await Promise.all(indicators.map(async ind=>{
+      try{
+        const r=await fetch(`https://api.worldbank.org/v2/country/${wb}/indicator/${ind}?format=json&mrv=1&per_page=1`,{mode:'cors'});
+        if(!r.ok)return;
+        const d=await r.json();
+        if(d[1]&&d[1][0]&&d[1][0].value!=null) results[ind]=d[1][0];
+      }catch(e){}
+    }));
+    return results;
+  }catch(e){return{}}
+}
+
+/* ── Google Apps Script proxy URL ── */
+const GAS_URL='https://script.google.com/macros/s/AKfycbx6aQuPaVHAp-Q4pXLpizYaJGqdQWCtoa4d5lq-pp8RAx0WA9ynokJs74crbgL3ObB9/exec';
+
+async function gasGet(params){
+  try{
+    const qs=Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+    const r=await fetch(`${GAS_URL}?${qs}`,{signal:AbortSignal.timeout(12000)});
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    if(d.error)throw new Error(d.error);
+    return d;
+  }catch(e){return null}
+}
+
+/* ── CORS proxy fallback ── */
+async function proxyFetch(targetUrl){
+  const proxies=[
+    url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url=>`https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  ];
+  for(const makeProxy of proxies){
+    try{
+      const r=await fetch(makeProxy(targetUrl),{signal:AbortSignal.timeout(8000)});
+      if(r.ok){
+        const text=await r.text();
+        try{return JSON.parse(text);}
+        catch(e){try{return JSON.parse(JSON.parse(text).contents);}catch(e2){}}
+      }
+    }catch(e){continue}
+  }
+  return null;
+}
+
+/* ── UNHCR ── */
+async function fetchUNHCR(wbCodes){
+  try{
+    const codes=wbCodes.slice(0,20).join(',');
+    // 1) Google Apps Script
+    const d=await gasGet({source:'unhcr',country:codes});
+    if(d&&d.refugees!=null) return{refugees:d.refugees,idps:d.idps};
+    // 2) Proxy fallback
+    const yr=new Date().getFullYear()-1;
+    const target=`https://api.unhcr.org/population/v1/population/?limit=100&yearFrom=${yr}&yearTo=${yr}&columns[]=refugees&columns[]=idps&coa=${codes}`;
+    const d2=await proxyFetch(target);
+    if(!d2)return null;
+    let ref=0,idp=0;
+    (d2.items||[]).forEach(i=>{ref+=Math.round(i.refugees||0);idp+=Math.round(i.idps||0)});
+    return{refugees:ref,idps:idp};
+  }catch(e){return null}
+}
+
+/* ── ReliefWeb ── */
+async function fetchReliefWeb(rwCountry,limit=10){
+  try{
+    // 1) Google Apps Script
+    const params={source:'reliefweb'};
+    if(rwCountry) params.rw=rwCountry;
+    else params.rw='';  // 빈 문자열로 전송해야 GAS가 글로벌로 처리
+    const d=await gasGet(params);
+    if(d&&Array.isArray(d.items)&&(d.items.length>0||d.total>0)){
+      return{
+        total:d.total||d.items.length||0,
+        items:(d.items||[]).map(i=>({
+          title:i.title||'Untitled',
+          date:i.date||'',
+          country:i.country||'',
+          url:i.url||'https://reliefweb.int'
+        }))
+      };
+    }
+    // GAS returned empty — try direct
+    if(d&&d.error) console.warn('ReliefWeb GAS error:',d.error);
+    // GAS only — direct ReliefWeb calls blocked (CORS + appname 400)
+    return null;
+  }catch(e){return null}
+}
+
+/* ── HDX HAPI — GAS only (direct calls CORS blocked) ── */
+async function fetchHDX(wbCode){
+  try{
+    const code=Array.isArray(wbCode)?wbCode[0]:wbCode.split(';')[0];
+    const d=await gasGet({source:'hdx',country:code});
+    if(d&&d.count!=null&&d.count>0) return{count:d.count};
+    return null;
+  }catch(e){return null}
+}
+
+/* ── HDX Global: try via GAS only (CORS blocked in browser) ── */
+async function fetchHDXGlobal(){
+  const priorityCodes=['SOM','YEM','SSD','SYR','CAF','MLI'];
+  for(const code of priorityCodes){
+    const d=await gasGet({source:'hdx',country:code});
+    if(d&&d.count!=null&&d.count>0) return{count:d.count,code};
+  }
+  return null;
+}
+
+/* ── ACLED via HDX (GAS proxy) ── */
+async function fetchACLED(wbCode){
+  try{
+    const params={source:'acled'};
+    if(wbCode) params.country=wbCode;
+    const d=await gasGet(params);
+    if(!d) return null;
+    return d;
+  }catch(e){return null}
+}
+
+/* ── GDACS: real-time disaster events (free, no registration) ── */
+async function fetchGDACS(iso3Code){
+  try{
+    const params={source:'gdacs'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchINFORM(iso3Code){
+  try{
+    const params={source:'inform'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d||d.score==null) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchNDGAIN(iso3Code){
+  try{
+    const params={source:'ndgain'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d||(d.vulnerability==null&&d.readiness==null)) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchHDXNeeds(iso3Code){
+  try{
+    const params={source:'hdx-needs'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d||d.pin==null) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchHDXPopulation(iso3Code){
+  try{
+    const params={source:'hdx-population'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d||d.total==null) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchUNHCRReturnees(iso3Codes){
+  try{
+    const params={source:'unhcr-returnees'};
+    if(iso3Codes) params.country=Array.isArray(iso3Codes)?iso3Codes.join(','):iso3Codes;
+    const d=await gasGet(params);
+    if(!d||d.returnees==null) return null;
+    return d;
+  }catch(e){return null}
+}
+async function fetchHDXRainfall(iso3Code){
+  try{
+    const params={source:'hdx-rainfall'};
+    if(iso3Code) params.country=iso3Code;
+    const d=await gasGet(params);
+    if(!d||d.count==null) return null;
+    return d;
+  }catch(e){return null}
+}
+function renderFeed(el,items){
+  if(!items||items.length===0){el.innerHTML='<div class="feed-msg">No reports found.</div>';return}
+  el.innerHTML=items.map(item=>{
+    // Handle both GAS-normalized {fields:{...}} and direct {title,date,country,url}
+    let title,date,ctry,url;
+    if(item.fields){
+      const f=item.fields;
+      title=f.title||'Untitled';
+      date=f['date.created']?new Date(f['date.created']).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'';
+      ctry=(f.primary_country||[]).map(c=>c.name).join(', ');
+      url=f.url_alias?`https://reliefweb.int${f.url_alias}`:'https://reliefweb.int';
+    } else {
+      title=item.title||'Untitled';
+      date=item.date?new Date(item.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'';
+      ctry=item.country||'';
+      url=item.url||'https://reliefweb.int';
+    }
+    return`<div class="feed-item"><span class="feed-dot"></span><div><div class="feed-title"><a href="${url}" target="_blank" rel="noopener">${title}</a></div><div class="feed-meta">${[date,ctry].filter(Boolean).join(' · ')} · ReliefWeb</div></div></div>`;
+  }).join('');
+}
+
+/* ══ GLOBAL DASHBOARD ══ */
+async function loadGlobalData(){
+  const wbs=COUNTRIES.map(c=>c.wb);
+  document.querySelectorAll('#view-global .mc.loading').forEach(e=>e.classList.add('loading'));
+  document.getElementById('global-feed').innerHTML='<div class="feed-msg">Loading reports…</div>';
+
+  const [wb,unhcr,rw,hdx,acled]=await Promise.all([
+    fetchWB(wbs),
+    fetchUNHCR(wbs),
+    fetchReliefWeb(null,10),
+    fetchHDXGlobal(),
+    fetchACLED(null)  // 글로벌: 포트폴리오 대표
+  ]);
+
+  if(wb) setMC('gm-population',fmt(wb.population),'portfolio total · World Bank latest');
+  else setMC('gm-population','—',null,'World Bank API error');
+
+  if(unhcr){
+    setMC('gm-refugees',fmt(unhcr.refugees),'portfolio total · UNHCR '+(unhcr.year||'latest'));
+    setMC('gm-idps',fmt(unhcr.idps),'portfolio total · UNHCR '+(unhcr.year||'latest'));
+  }else{
+    setMC('gm-refugees','N/A','View at data.unhcr.org');
+    setMC('gm-idps','N/A','View at data.unhcr.org');
+  }
+
+  if(rw&&(rw.items.length>0||rw.total>0)){
+    const displayTotal=rw.total>0?rw.total:rw.items.length;
+    setMC('gm-reports',fmt(displayTotal),'all target countries · 90 days · ReliefWeb');
+    renderFeed(document.getElementById('global-feed'),rw.items);
+  }else{
+    // Try to show from feed even if total unknown
+    setMC('gm-reports','—','Loading…');
+    // Re-attempt direct fetch with longer timeout
+    fetchReliefWeb(null,10).then(rw2=>{
+      if(rw2&&rw2.items.length>0){
+        setMC('gm-reports',fmt(rw2.total||rw2.items.length),'all target countries · 90 days · ReliefWeb');
+        renderFeed(document.getElementById('global-feed'),rw2.items);
+      }else{
+        setMC('gm-reports','N/A','View at reliefweb.int');
+        document.getElementById('global-feed').innerHTML=`<div class="feed-msg">
+          <a href="https://reliefweb.int/disasters" target="_blank" style="color:var(--accent)">↗ View reports on ReliefWeb</a>
+        </div>`;
+      }
+    });
+  }
+
+  if(hdx&&hdx.count!=null){
+    const lbl=hdx.code?`${hdx.code} · HDX HAPI`:'sample countries · HDX HAPI';
+    setMC('gm-food',fmt(hdx.count),lbl);
+  } else setMC('gm-food','N/A','View at hapi.humdata.org');
+
+  // ACLED
+  if(acled&&acled.events!=null){
+    const card=document.getElementById('gm-conflict');
+    card.classList.remove('loading');
+    card.querySelector('.mc-val').textContent=fmt(acled.events);
+    card.querySelector('.mc-sub').innerHTML=`${fmt(acled.fatalities)} fatalities · ${acled.note||'ACLED/HDX'}`;
+  } else if(acled&&acled.note){
+    setMC('gm-conflict','N/A',acled.note);
+  } else {
+    setMC('gm-conflict','N/A','ACLED/HDX unavailable');
+  }
+}
+
+/* ══ COUNTRY DASHBOARD ══ */
+async function loadCountryData(c){
+  document.getElementById('ch-name').textContent=c.name;
+  document.getElementById('ch-region').textContent=c.region+' · KOICA FCV target country';
+  document.getElementById('country-feed-title').textContent=`Latest reports — ${c.name}`;
+
+  document.getElementById('ch-links').innerHTML=[
+    {l:`ReliefWeb`,u:`https://reliefweb.int/country/${c.rw}`,cls:''},
+    {l:`UNHCR data`,u:`https://data.unhcr.org/en/country/${c.wb}`,cls:''},
+    {l:`World Bank`,u:`https://data.worldbank.org/country/${c.wb}`,cls:''},
+    {l:`ACLED/HDX`,u:`https://data.humdata.org/dataset/${c.wb.toLowerCase()}-acled-conflict-data`,cls:'acled'},
+  ].map(x=>`<a class="hero-link ${x.cls}" href="${x.u}" target="_blank" rel="noopener">↗ ${x.l}</a>`).join('');
+
+  document.querySelectorAll('#view-country .mc.loading').forEach(e=>e.classList.add('loading'));
+  document.getElementById('country-feed').innerHTML='<div class="feed-msg">Loading…</div>';
+
+  const [wb,wbDetail,unhcr,rw,hdx,acled]=await Promise.all([
+    fetchWB([c.wb]),
+    fetchWBCountry(c.wb),
+    fetchUNHCR([c.wb]),
+    fetchReliefWeb(c.rw,8),
+    fetchHDX(c.wb),
+    fetchACLED(c.wb)
+  ]);
+
+  // Population
+  if(wb) setMC('cm-population',fmt(wb.population),`${c.name} · World Bank latest`);
+  else setMC('cm-population','—',null,'World Bank error');
+
+  // World Bank detail indicators — inject into card
+  if(wbDetail && Object.keys(wbDetail).length>0){
+    const card=document.getElementById('cm-population');
+    const extras=[];
+    const sp=wbDetail['SH.H2O.BASW.ZS'];
+    const san=wbDetail['SH.STA.BASS.ZS'];
+    const elec=wbDetail['EG.ELC.ACCS.ZS'];
+    const gdp=wbDetail['NY.GDP.PCAP.CD'];
+    if(sp) extras.push(`Water access: ${sp.value.toFixed(0)}% (${sp.date})`);
+    if(san) extras.push(`Sanitation: ${san.value.toFixed(0)}% (${san.date})`);
+    if(elec) extras.push(`Electricity: ${elec.value.toFixed(0)}% (${elec.date})`);
+    if(gdp) extras.push(`GDP/capita: $${Math.round(gdp.value).toLocaleString()} (${gdp.date})`);
+    if(extras.length>0){
+      const existing=card.querySelector('.mc-sub');
+      if(existing) existing.insertAdjacentHTML('afterend',`<div style="font-size:10px;color:var(--text2);margin-top:6px;line-height:1.7;border-top:1px solid var(--border);padding-top:6px">${extras.join('<br>')}</div>`);
+    }
+  }
+
+  // UNHCR
+  if(unhcr){
+    setMC('cm-refugees',fmt(unhcr.refugees),`${c.name} · UNHCR ${unhcr.year||'latest'}`);
+    setMC('cm-idps',fmt(unhcr.idps),`${c.name} · UNHCR ${unhcr.year||'latest'}`);
+  }else{
+    setMC('cm-refugees','N/A','View at data.unhcr.org');
+    setMC('cm-idps','N/A','View at data.unhcr.org');
+  }
+
+  // ReliefWeb
+  if(rw){
+    setMC('cm-reports',fmt(rw.total),`${c.name} · 90 days`);
+    renderFeed(document.getElementById('country-feed'),rw.items);
+  }else{
+    setMC('cm-reports','N/A','View at reliefweb.int');
+    document.getElementById('country-feed').innerHTML=`<div class="feed-msg"><a href="https://reliefweb.int/country/${c.rw}" target="_blank" style="color:var(--accent)">↗ View ${c.name} reports on ReliefWeb</a></div>`;
+  }
+
+  // HDX
+  if(hdx) setMC('cm-food',fmt(hdx.count),`${c.name} · HDX HAPI`);
+  else setMC('cm-food','N/A','View at hapi.humdata.org');
+
+  // ACLED via HDX
+  const conflictCard=document.getElementById('cm-conflict');
+  conflictCard.classList.remove('loading');
+  if(acled&&acled.events!=null){
+    conflictCard.querySelector('.mc-val').textContent=fmt(acled.events);
+    conflictCard.querySelector('.mc-sub').innerHTML=
+      `${fmt(acled.fatalities)} fatalities · last 12 months · ACLED/HDX`;
+  } else if(acled&&acled.note&&acled.note.indexOf('No ACLED')===-1){
+    conflictCard.querySelector('.mc-val').textContent='N/A';
+    conflictCard.querySelector('.mc-sub').textContent=acled.note||'ACLED/HDX unavailable';
+  } else {
+    conflictCard.querySelector('.mc-val').textContent='N/A';
+    conflictCard.querySelector('.mc-sub').innerHTML=
+      `<a href="https://data.humdata.org/organization/acled" target="_blank" style="color:var(--accent)">↗ View ACLED data on HDX</a>`;
+  }
+}
+
+/* ══ INDICATOR RENDER ══ */
+/* ── WB indicator code map ── */
+const WB_CODES={
+  'SH.H2O.BASW.ZS': 'Access to basic drinking water (%)',
+  'SH.STA.BASS.ZS': 'Access to basic sanitation (%)',
+  'EG.ELC.ACCS.ZS': 'Access to electricity (%)',
+  'NY.GDP.PCAP.CD': 'GDP per capita (USD)',
+  'SP.POP.TOTL':    'Population',
+  'SH.MED.BEDS.ZS': 'Hospital beds (per 1,000)',
+  'SH.MED.PHYS.ZS': 'Physicians (per 1,000)',
+  'SE.PRM.ENRR':    'Primary school enrollment (%)',
+  'SE.SEC.ENRR':    'Secondary school enrollment (%)',
+  'SG.GEN.PARL.ZS': 'Women in parliament (%)',
+  'VC.IHR.PSRC.P5': 'Intentional homicides (per 100k)',
+};
+
+/* ── live WB data cache ── */
+let wbCache={};  // {countryCode: {indicatorCode: {value, date}}}
+
+async function fetchWBIndicators(wb, codes){
+  if(wbCache[wb]) return wbCache[wb];
+  const results={};
+  await Promise.all(codes.map(async ind=>{
+    try{
+      const r=await fetch(`https://api.worldbank.org/v2/country/${wb}/indicator/${ind}?format=json&mrv=1&per_page=1`,{mode:'cors'});
+      if(!r.ok)return;
+      const d=await r.json();
+      if(d[1]&&d[1][0]&&d[1][0].value!=null) results[ind]=d[1][0];
+    }catch(e){}
+  }));
+  wbCache[wb]=results;
+  return results;
+}
+
+/* ── format WB value ── */
+function fmtWB(ind, item){
+  if(!item||item.value==null) return null;
+  const v=item.value;
+  if(ind==='SP.POP.TOTL') return fmt(v);
+  if(ind==='NY.GDP.PCAP.CD') return '$'+Math.round(v).toLocaleString();
+  if(ind==='SH.MED.BEDS.ZS'||ind==='SH.MED.PHYS.ZS') return v.toFixed(2);
+  if(['GE.EST','CC.EST','RL.EST','RQ.EST','PV.EST','VA.EST'].indexOf(ind)!==-1) return v.toFixed(2);
+  return v.toFixed(1)+'%';
+}
+
+function renderIndicators(containerId){
+  const filtered=currentDomain==='all'?INDICATORS:INDICATORS.filter(i=>i.domain===currentDomain);
+  const byD={};
+  filtered.forEach(i=>{if(!byD[i.domain])byD[i.domain]=[];byD[i.domain].push(i)});
+  const order=['conflict','displacement','humanitarian','climate','governance','health','population'];
+  let html='';
+  order.forEach(dom=>{
+    if(!byD[dom])return;
+    const inds=byD[dom];
+    html+=`<div class="sec-head"><span class="sec-head-dot" style="background:${inds[0].color}"></span><span class="sec-head-title">${DOMAIN_LABELS[dom]}</span><span class="sec-head-count">${inds.length} indicator${inds.length>1?'s':''}</span></div><div class="ind-grid">`;
+    inds.forEach(ind=>{
+      const p=ind.p.map(s=>`<a class="src-a p" href="${s.u}" target="_blank" rel="noopener">↗ ${s.l}</a>`).join('');
+      const b=ind.b.map(s=>`<a class="src-a b" href="${s.u}" target="_blank" rel="noopener">${s.l}</a>`).join('');
+      // Live data badge if WB code available
+      const hasLive=ind.wb||ind.src;
+      const liveKey=ind.wb?ind.wb.replace(/\./g,"_"):ind.src;
+      let liveHtml="";
+      if(hasLive){
+        liveHtml=`<div class="ind-live" id="indlive-${liveKey}-${containerId}"><span class="ind-live-loading">Loading…</span></div>`;
+      }else if(ind.link){
+        liveHtml=`<a class="ind-ext-link" href="${ind.link.u}" target="_blank" rel="noopener">${ind.link.l}</a>`;
+      }
+      html+=`<div class="ind-card">
+        <div class="ind-top"><span class="ind-name">${ind.name}</span><span class="str-badge s-${ind.strength}">${ind.sl}</span></div>
+        ${liveHtml}
+        <div class="src-row">${p}${b}</div>
+        <p class="ind-note">${ind.note}</p>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById(containerId).innerHTML=html||'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No indicators for this selection.</div>';
+  // Load live WB data if country selected
+  if(currentCountry) loadIndicatorData(containerId, currentCountry);
+  else loadGlobalIndicatorData(containerId);
+}
+
+/* ══ INDICATOR LIVE DATA ══ */
+async function loadIndicatorData(containerId, country){
+  const wbInds=INDICATORS.filter(i=>i.wb);
+  const codes=[...new Set(wbInds.map(i=>i.wb))];
+  const [wbData, unhcrData, rwData, hdxData, gdacsData, rainfallData,
+         informData, ndgainData, hdxNeedsData, hdxPopData, returneeData]=await Promise.all([
+    fetchWBIndicators(country.wb, codes),
+    fetchUNHCR([country.wb]),
+    fetchReliefWeb(country.rw, 1),
+    fetchHDX(country.wb),
+    fetchGDACS(country.wb),
+    fetchHDXRainfall(country.wb),
+    fetchINFORM(country.wb),
+    fetchNDGAIN(country.wb),
+    fetchHDXNeeds(country.wb),
+    fetchHDXPopulation(country.wb),
+    fetchUNHCRReturnees(country.wb)
+  ]);
+
+  INDICATORS.filter(i=>i.wb||i.src).forEach(ind=>{
+    const key=ind.wb?ind.wb.replace(/\./g,'_'):ind.src;
+    const el=document.getElementById(`indlive-${key}-${containerId}`);
+    if(!el)return;
+
+    if(ind.wb){
+      const item=wbData[ind.wb];
+      if(item&&item.value!=null){
+        el.innerHTML=`<div class="ind-live-val">${fmtWB(ind.wb,item)}<span class="ind-live-year">${item.date} · World Bank</span></div>`;
+      }else{
+        el.innerHTML=`<div class="ind-live-na">No data · World Bank</div>`;
+      }
+    } else if(ind.src==='unhcr-refugees'){
+      if(unhcrData) el.innerHTML=`<div class="ind-live-val">${fmt(unhcrData.refugees)}<span class="ind-live-year">${unhcrData.year||'latest'} · UNHCR</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    } else if(ind.src==='unhcr-idps'){
+      if(unhcrData) el.innerHTML=`<div class="ind-live-val">${fmt(unhcrData.idps)}<span class="ind-live-year">${unhcrData.year||'latest'} · UNHCR</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    } else if(ind.src==='rw-count'){
+      if(rwData) el.innerHTML=`<div class="ind-live-val">${fmt(rwData.total)}<span class="ind-live-year">90 days · ReliefWeb</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://reliefweb.int" target="_blank" style="color:var(--accent)">reliefweb.int</a></div>`;
+    } else if(ind.src==='hdx-food'){
+      if(hdxData) el.innerHTML=`<div class="ind-live-val">${fmt(hdxData.count)}<span class="ind-live-year">data points · HDX HAPI</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://hapi.humdata.org" target="_blank" style="color:var(--accent)">hapi.humdata.org</a></div>`;
+    } else if(ind.src==='hdx-rainfall'){
+      if(rainfallData&&rainfallData.count>0){
+        const anomalyTxt=rainfallData.latestAnomaly!=null
+          ? `${rainfallData.latestAnomaly>0?'+':''}${rainfallData.latestAnomaly.toFixed(1)}mm anomaly`
+          : `${fmt(rainfallData.count)} data points`;
+        const dateTxt=rainfallData.latestDate?rainfallData.latestDate.slice(0,7):'latest';
+        el.innerHTML=`<div class="ind-live-val">${anomalyTxt}<span class="ind-live-year">${dateTxt} · HDX HAPI · CHIRPS</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://hapi.humdata.org" target="_blank" style="color:var(--accent)">hapi.humdata.org</a></div>`;
+    } else if(ind.src==='gdacs-events'){
+      if(gdacsData&&gdacsData.total!=null){
+        const breakdown=gdacsData.red>0?`🔴 ${gdacsData.red} · 🟠 ${gdacsData.orange} · 🟢 ${gdacsData.green}`:'';
+        el.innerHTML=`<div class="ind-live-val">${fmt(gdacsData.total)}<span class="ind-live-year">events · 12 months · GDACS${breakdown?' · '+breakdown:''}</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://www.gdacs.org" target="_blank" style="color:var(--accent)">gdacs.org</a></div>`;
+    } else if(ind.src==='gdacs-severity'){
+      if(gdacsData&&gdacsData.recentEvents&&gdacsData.recentEvents.length>0){
+        const latest=gdacsData.recentEvents[0];
+        const levelColor=latest.level==='Red'?'#c0392b':latest.level==='Orange'?'#e67e22':'#27ae60';
+        el.innerHTML=`<div class="ind-live-val" style="font-size:13px;line-height:1.4">`+
+          `<span style="color:${levelColor};font-weight:500">${latest.level}</span> · ${latest.name}`+
+          `<span class="ind-live-year">${latest.date} · ${latest.country} · GDACS</span>`+
+          (latest.severity?`<div style="font-size:10px;color:var(--text2);margin-top:2px">${latest.severity}</div>`:'')+
+          `</div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://www.gdacs.org" target="_blank" style="color:var(--accent)">gdacs.org</a></div>`;
+    } else if(ind.src==='inform-risk'){
+      if(informData&&informData.score!=null){
+        const s=parseFloat(informData.score).toFixed(1);
+        el.innerHTML=`<div class="ind-live-val">${s}<span class="ind-live-year">${informData.year||'latest'} · INFORM Risk (0–10)</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://drmkc.jrc.ec.europa.eu/inform-index" target="_blank" style="color:var(--accent)">INFORM</a></div>`;
+    } else if(ind.src==='ndgain-vuln'){
+      if(ndgainData&&ndgainData.vulnerability!=null){
+        el.innerHTML=`<div class="ind-live-val">${ndgainData.vulnerability.toFixed(2)}<span class="ind-live-year">${ndgainData.year||'latest'} · ND-GAIN (0–1 scale)</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://gain.nd.edu" target="_blank" style="color:var(--accent)">ND-GAIN</a></div>`;
+    } else if(ind.src==='ndgain-ready'){
+      if(ndgainData&&ndgainData.readiness!=null){
+        el.innerHTML=`<div class="ind-live-val">${ndgainData.readiness.toFixed(2)}<span class="ind-live-year">${ndgainData.year||'latest'} · ND-GAIN (0–1 scale)</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://gain.nd.edu" target="_blank" style="color:var(--accent)">ND-GAIN</a></div>`;
+    } else if(ind.src==='hdx-needs'){
+      if(hdxNeedsData&&hdxNeedsData.pin!=null&&hdxNeedsData.pin>0){
+        el.innerHTML=`<div class="ind-live-val">${fmt(hdxNeedsData.pin)}<span class="ind-live-year">people in need · HDX HAPI</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://hapi.humdata.org" target="_blank" style="color:var(--accent)">HDX HAPI</a></div>`;
+    } else if(ind.src==='hdx-subpop'){
+      if(hdxPopData&&hdxPopData.total!=null&&hdxPopData.total>0){
+        el.innerHTML=`<div class="ind-live-val">${fmt(hdxPopData.total)}<span class="ind-live-year">${hdxPopData.adminCount} admin-1 units · HDX HAPI</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://hapi.humdata.org" target="_blank" style="color:var(--accent)">HDX HAPI</a></div>`;
+    } else if(ind.src==='unhcr-returnees'){
+      if(returneeData&&returneeData.returnees!=null){
+        el.innerHTML=`<div class="ind-live-val">${fmt(returneeData.returnees)}<span class="ind-live-year">${returneeData.year||'latest'} · UNHCR</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    }
+  });
+}
+
+async function loadGlobalIndicatorData(containerId){
+  const wbInds=INDICATORS.filter(i=>i.wb);
+  const srcInds=INDICATORS.filter(i=>i.src);
+  const codes=[...new Set(wbInds.map(i=>i.wb))];
+  const sampleWB='SOM;YEM;SYR;SSD;CAF';
+
+  const [wbResults,unhcrData,rwData,hdxData,gdacsData,informData,ndgainData]=await Promise.all([
+    (async()=>{
+      const results={};
+      await Promise.all(codes.map(async code=>{
+        try{
+          const r=await fetch(`https://api.worldbank.org/v2/country/${sampleWB}/indicator/${code}?format=json&mrv=1&per_page=10`,{mode:'cors'});
+          if(!r.ok)return;
+          const d=await r.json();
+          const vals=(d[1]||[]).filter(i=>i.value!=null).map(i=>i.value);
+          if(vals.length>0) results[code]={value:vals.reduce((a,b)=>a+b,0)/vals.length,date:`avg · ${vals.length} countries`};
+        }catch(e){}
+      }));
+      return results;
+    })(),
+    fetchUNHCR(['SOM','YEM','SYR','SSD','CAF']),
+    fetchReliefWeb(null,1),
+    fetchHDX('SOM'),
+    fetchGDACS(null),
+    fetchINFORM('SOM'),
+    fetchNDGAIN('SOM')
+  ]);
+
+  // WB indicators
+  wbInds.forEach(ind=>{
+    const key=ind.wb.replace(/\./g,'_');
+    const el=document.getElementById(`indlive-${key}-${containerId}`);
+    if(!el)return;
+    const item=wbResults[ind.wb];
+    if(item&&item.value!=null){
+      el.innerHTML=`<div class="ind-live-val">${fmtWB(ind.wb,item)}<span class="ind-live-year">${item.date} · World Bank</span></div>`;
+    }else{
+      el.innerHTML=`<div class="ind-live-na">Select a country for data</div>`;
+    }
+  });
+
+  // src-based indicators
+  srcInds.forEach(ind=>{
+    const el=document.getElementById(`indlive-${ind.src}-${containerId}`);
+    if(!el)return;
+    if(ind.src==='unhcr-refugees'){
+      if(unhcrData) el.innerHTML=`<div class="ind-live-val">${fmt(unhcrData.refugees)}<span class="ind-live-year">${unhcrData.year||'latest'} · UNHCR</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    } else if(ind.src==='unhcr-idps'){
+      if(unhcrData) el.innerHTML=`<div class="ind-live-val">${fmt(unhcrData.idps)}<span class="ind-live-year">${unhcrData.year||'latest'} · UNHCR</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    } else if(ind.src==='unhcr-returnees'){
+      if(unhcrData&&unhcrData.returnees!=null) el.innerHTML=`<div class="ind-live-val">${fmt(unhcrData.returnees)}<span class="ind-live-year">${unhcrData.year||'latest'} · UNHCR</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://data.unhcr.org" target="_blank" style="color:var(--accent)">data.unhcr.org</a></div>`;
+    } else if(ind.src==='rw-count'){
+      if(rwData&&rwData.total>0) el.innerHTML=`<div class="ind-live-val">${fmt(rwData.total)}<span class="ind-live-year">90 days · ReliefWeb</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://reliefweb.int" target="_blank" style="color:var(--accent)">reliefweb.int</a></div>`;
+    } else if(ind.src==='hdx-food'){
+      if(hdxData&&hdxData.count>0) el.innerHTML=`<div class="ind-live-val">${fmt(hdxData.count)}<span class="ind-live-year">data points · HDX HAPI</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://hapi.humdata.org" target="_blank" style="color:var(--accent)">hapi.humdata.org</a></div>`;
+    } else if(ind.src==='gdacs-events'){
+      if(gdacsData&&gdacsData.total!=null) el.innerHTML=`<div class="ind-live-val">${fmt(gdacsData.total)}<span class="ind-live-year">events · 12 months · GDACS · 🔴${gdacsData.red} 🟠${gdacsData.orange}</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://www.gdacs.org" target="_blank" style="color:var(--accent)">gdacs.org</a></div>`;
+    } else if(ind.src==='gdacs-severity'){
+      if(gdacsData&&gdacsData.recentEvents&&gdacsData.recentEvents.length>0){
+        const ev=gdacsData.recentEvents[0];
+        const col=ev.level==='Red'?'#c0392b':ev.level==='Orange'?'#e67e22':'#27ae60';
+        el.innerHTML=`<div class="ind-live-val" style="font-size:13px"><span style="color:${col};font-weight:500">${ev.level}</span> · ${ev.name}<span class="ind-live-year">${ev.date} · ${ev.country} · GDACS</span></div>`;
+      } else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://www.gdacs.org" target="_blank" style="color:var(--accent)">gdacs.org</a></div>`;
+    } else if(ind.src==='inform-risk'){
+      if(informData&&informData.score!=null) el.innerHTML=`<div class="ind-live-val">${parseFloat(informData.score).toFixed(1)}<span class="ind-live-year">${informData.year||'latest'} · INFORM Risk (0–10)</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Data at <a href="https://drmkc.jrc.ec.europa.eu/inform-index" target="_blank" style="color:var(--accent)">INFORM</a></div>`;
+    } else if(ind.src==='ndgain-vuln'){
+      if(ndgainData&&ndgainData.vulnerability!=null) el.innerHTML=`<div class="ind-live-val">${ndgainData.vulnerability.toFixed(2)}<span class="ind-live-year">${ndgainData.year||'latest'} · ND-GAIN</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Select a country for data</div>`;
+    } else if(ind.src==='ndgain-ready'){
+      if(ndgainData&&ndgainData.readiness!=null) el.innerHTML=`<div class="ind-live-val">${ndgainData.readiness.toFixed(2)}<span class="ind-live-year">${ndgainData.year||'latest'} · ND-GAIN</span></div>`;
+      else el.innerHTML=`<div class="ind-live-na">Select a country for data</div>`;
+    } else {
+      el.innerHTML=`<div class="ind-live-na">Select a country for data</div>`;
+    }
+  });
+}
+
+/* ══ VIEW SWITCHING ══ */
+function showGlobal(){
+  currentView='global'; currentCountry=null;
+  document.getElementById('view-global').classList.add('active');
+  document.getElementById('view-country').classList.remove('active');
+  document.getElementById('view-badge').textContent='Global';
+  document.getElementById('topbar-title').textContent='Portfolio overview — 20 FCV target countries';
+  document.getElementById('btn-global').classList.add('active');
+  renderCountryTags(allCountries);
+  highlightMap();
+  renderIndicators('global-indicators');
+  loadGlobalData();
+}
+
+function showCountry(c){
+  currentView='country'; currentCountry=c;
+  document.getElementById('view-global').classList.remove('active');
+  document.getElementById('view-country').classList.add('active');
+  document.getElementById('view-badge').textContent=c.name;
+  document.getElementById('topbar-title').textContent=`${c.name} · ${c.region}`;
+  document.getElementById('btn-global').classList.remove('active');
+  renderCountryTags(allCountries);
+  highlightMap();
+  renderIndicators('country-indicators');
+  loadCountryData(c);
+}
+
+function refreshData(){
+  const btn=document.getElementById('refresh-btn');
+  btn.classList.add('spinning');btn.textContent='↻ Refreshing…';
+  const done=()=>{btn.classList.remove('spinning');btn.textContent='↻ Refresh data'};
+  if(currentView==='global') loadGlobalData().then(done);
+  else if(currentCountry) loadCountryData(currentCountry).then(done);
+}
+
+/* ══ DOMAIN FILTER ══ */
+function setDomain(d,btn){
+  currentDomain=d;
+  document.querySelectorAll('.sb-sec .nav-btn').forEach(b=>{if(b.id!=='btn-global')b.classList.remove('active')});
+  if(btn)btn.classList.add('active');
+  if(currentView==='global') renderIndicators('global-indicators');
+  else renderIndicators('country-indicators');
+}
+
+/* ══ COUNTRY TAGS ══ */
+function renderCountryTags(list){
+  const wrap=document.getElementById('ctags');
+  const regions={};
+  list.forEach(c=>{if(!regions[c.region])regions[c.region]=[];regions[c.region].push(c)});
+  let html='';
+  Object.entries(regions).forEach(([region,countries])=>{
+    html+=`<div class="ctag-region">${region}</div>`;
+    countries.forEach(c=>{
+      const active=currentCountry&&currentCountry.iso===c.iso?'active':'';
+      html+=`<span class="ctag ${active}" onclick="showCountry(COUNTRIES.find(x=>x.iso==='${c.iso}'))">${c.name}</span>`;
+    });
+  });
+  wrap.innerHTML=html;
+}
+
+function searchCountry(val){
+  const l=val.toLowerCase();
+  allCountries=val?COUNTRIES.filter(c=>c.name.toLowerCase().includes(l)):[...COUNTRIES];
+  renderCountryTags(allCountries);
+}
+
+/* ══ MAP ══ */
+let zoomB,svgSel,mapG;
+function initMap(){
+  const svg=d3.select('#world-map'); svgSel=svg;
+  const W=document.querySelector('.map-wrap').clientWidth-2;
+  const H=260;
+  svg.attr('viewBox',`0 0 ${W} ${H}`).attr('width',W).attr('height',H).style('cursor','grab').style('overflow','hidden');
+  const proj=d3.geoNaturalEarth1().scale(W/6.4).translate([W/2,H/2]);
+  const path=d3.geoPath(proj);
+  const tip=document.getElementById('tooltip');
+  const focusSet=new Set(COUNTRIES.map(c=>c.iso));
+  mapG=svg.append('g');
+  zoomB=d3.zoom().scaleExtent([1,14]).on('zoom',e=>{mapG.attr('transform',e.transform);svg.style('cursor',e.transform.k>1?'grabbing':'grab')});
+  svg.call(zoomB).on('dblclick.zoom',null);
+  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world=>{
+    const feats=topojson.feature(world,world.objects.countries).features;
+    mapG.selectAll('path').data(feats).join('path')
+      .attr('d',path)
+      .attr('fill',d=>{const iso=String(d.id).padStart(3,'0');return focusSet.has(iso)?'#1a6fd4':'#d0d8e4'})
+      .attr('stroke','#fff').attr('stroke-width',.5)
+      .attr('data-iso',d=>String(d.id).padStart(3,'0'))
+      .on('mousemove',function(event,d){
+        const iso=String(d.id).padStart(3,'0');
+        const c=COUNTRIES.find(c=>c.iso===iso);if(!c)return;
+        tip.style.opacity='1';tip.style.left=(event.clientX+12)+'px';tip.style.top=(event.clientY-34)+'px';
+        tip.innerHTML=`<strong>${c.name}</strong><br><span style="color:var(--text3);font-size:10px">${c.region}</span><br><span style="color:var(--accent);font-size:10px">Click → country dashboard</span>`;
+      })
+      .on('mouseleave',()=>{tip.style.opacity='0'})
+      .on('click',function(event,d){
+        const iso=String(d.id).padStart(3,'0');
+        const c=COUNTRIES.find(c=>c.iso===iso);if(c)showCountry(c);
+      });
+  }).catch(()=>{svg.append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle').attr('fill','#a8b4c0').attr('font-size',12).text('Map unavailable')});
+}
+function zoomMap(f){svgSel&&zoomB&&svgSel.transition().duration(280).call(zoomB.scaleBy,f)}
+function resetZoom(){svgSel&&zoomB&&svgSel.transition().duration(380).call(zoomB.transform,d3.zoomIdentity)}
+function highlightMap(){
+  const focusSet=new Set(COUNTRIES.map(c=>c.iso));
+  d3.select('#world-map').selectAll('path').attr('fill',function(){
+    const iso=this.getAttribute('data-iso');
+    if(currentCountry&&currentCountry.iso===iso)return'#f0a500';
+    return focusSet.has(iso)?'#1a6fd4':'#d0d8e4';
+  });
+}
+
+/* ══ INIT ══ */
+renderCountryTags(COUNTRIES);
+renderIndicators('global-indicators');
+initMap();
+loadGlobalData();
+</script>
+</body>
+</html>
